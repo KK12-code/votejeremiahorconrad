@@ -1,0 +1,10 @@
+/* style.css */
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-image: url('https://railernews.org/wp-content/uploads/2023/09/sitp-cast-photos.jpeg'); /* Paste the full Base64 string here */
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-attachment: fixed;
+}

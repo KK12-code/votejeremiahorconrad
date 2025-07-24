@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vote for Your Team!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Keep other body styles here if any, or remove this style block if only background was here */
+        /* font-family 'Inter' is already applied by the link tag and in style.css for body */
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
+        <h1 class="text-4xl font-bold mb-6 text-gray-800">Vote for Your Team!</h1>
+
+        <div class="flex justify-around items-center mb-8 space-x-4">
+            <div class="flex flex-col items-center">
+                <span class="text-6xl font-extrabold text-blue-600" id="jeremiah-votes">0</span>
+                <span class="text-lg font-semibold text-gray-600">Team Jeremiah</span>
+            </div>
+            <div class="flex flex-col items-center">
+                <span class="text-6xl font-extrabold text-red-600" id="conrad-votes">0</span>
+                <span class="text-lg font-semibold text-gray-600">Team Conrad</span>
+            </div>
+        </div>
+
+        <div class="flex flex-col space-y-4 mb-6">
+            <button id="vote-jeremiah-btn"
+                    class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
+                Vote Team Jeremiah
+            </button>
+            <button id="vote-conrad-btn"
+                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
+                Vote Team Conrad
+            </button>
+        </div>
+
+        <p id="message" class="text-lg text-gray-700 font-medium mb-4"></p>
+
+        <button id="reset-votes-btn"
+                class="mt-4 text-sm text-gray-500 hover:text-gray-700 underline transition duration-200">
+            Reset Votes
+        </button>
+    </div>
+
+    <script>
+        const jeremiahVotesSpan = document.getElementById('jeremiah-votes');
+        const conradVotesSpan = document.getElementById('conrad-votes');
+        const voteJeremiahBtn = document.getElementById('vote-jeremiah-btn');
+        const voteConradBtn = document.getElementById('vote-conrad-btn');
+        const messagePara = document.getElementById('message');
+        const resetVotesBtn = document.getElementById('reset-votes-btn');
+
+        let jeremiahVotes = 0;
+        let conradVotes = 0;
+        let hasVoted = false; // Tracks if the current user has voted
+
+        // Function to load votes and state from localStorage
+        function loadVotes() {
+            const storedJeremiahVotes = localStorage.getItem('teamJeremiahVotes');
+            const storedConradVotes = localStorage.getItem('teamConradVotes');
+            const storedHasVoted = localStorage.getItem('hasVoted');
+
+            if (storedJeremiahVotes) {
+                jeremiahVotes = parseInt(storedJeremiahVotes);
+            }
+            if (storedConradVotes) {
+                conradVotes = parseInt(storedConradVotes);
+            }
+            if (storedHasVoted === 'true') {
+                hasVoted = true;
+            }
+
+            updateDisplay();
+            if (hasVoted) {
+                disableVoting();
+                messagePara.textContent = "Thanks for voting!";
+            }
+        }
+
+        // Function to save votes and state to localStorage
+        function saveVotes() {
+            localStorage.setItem('teamJeremiahVotes', jeremiahVotes);
+            localStorage.setItem('teamConradVotes', conradVotes);
+            localStorage.setItem('hasVoted', hasVoted);
+        }
+
+        // Function to update the displayed vote counts
+        function updateDisplay() {
+            jeremiahVotesSpan.textContent = jeremiahVotes;
+            conradVotesSpan.textContent = conradVotes;
+        }
+
+        // Function to disable voting buttons
+        function disableVoting() {
+            voteJeremiahBtn.disabled = true;
+            voteConradBtn.disabled = true;
+            voteJeremiahBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            voteConradBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        // Function to enable voting buttons
+        function enableVoting() {
+            voteJeremiahBtn.disabled = false;
+            voteConradBtn.disabled = false;
+            voteJeremiahBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            voteConradBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        // Event listener for Team Jeremiah button
+        voteJeremiahBtn.addEventListener('click', () => {
+            if (!hasVoted) {
+                jeremiahVotes++;
+                hasVoted = true;
+                updateDisplay();
+                saveVotes();
+                disableVoting();
+                messagePara.textContent = "Thanks for voting Team Jeremiah!";
+            }
+        });
+
+        // Event listener for Team Conrad button
+        voteConradBtn.addEventListener('click', () => {
+            if (!hasVoted) {
+                conradVotes++;
+                hasVoted = true;
+                updateDisplay();
+                saveVotes();
+                disableVoting();
+                messagePara.textContent = "Thanks for voting Team Conrad!";
+            }
+        });
+
+        // Event listener for Reset Votes button
+        resetVotesBtn.addEventListener('click', () => {
+            jeremiahVotes = 0;
+            conradVotes = 0;
+            hasVoted = false;
+            saveVotes(); // Save the reset state
+            updateDisplay();
+            enableVoting();
+            messagePara.textContent = "Votes have been reset. You can vote again!";
+        });
+
+        // Load votes when the page loads
+        document.addEventListener('DOMContentLoaded', loadVotes);
+    </script>
+</body>
+</html>
