@@ -330,14 +330,26 @@
             }
 
             showModal("Are you sure you want to reset all votes? This action cannot be undone.");
-            const confirmButton = document.createElement('button');
-            confirmButton.textContent = 'Confirm Reset';
-            confirmButton.className = 'mt-4 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out';
+            const modalContent = modal.querySelector('.modal-content');
+            let confirmButton = modalContent.querySelector('#confirm-reset-btn'); // Give it an ID
+            if (!confirmButton) {
+                confirmButton = document.createElement('button');
+                confirmButton.id = 'confirm-reset-btn'; // Assign ID
+                confirmButton.textContent = 'Confirm Reset';
+                confirmButton.className = 'mt-4 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out';
+                modalContent.appendChild(confirmButton);
+            }
+
+            // Remove previous event listener to prevent multiple bindings
+            confirmButton.onclick = null; 
             confirmButton.onclick = async () => {
+                console.log("Confirm Reset button clicked."); // Debugging
                 closeModal();
                 loadingMessage.textContent = "Resetting votes...";
                 try {
+                    console.log("Attempting to set Firestore document to 0 votes..."); // Debugging
                     await setDoc(votesDocRef, { jeremiah: 0, conrad: 0 });
+                    console.log("Firestore document set successfully."); // Debugging
                     hasVoted = false;
                     saveHasVoted();
                     enableVoting(); // This will now only enable voting buttons
@@ -345,16 +357,11 @@
                     loadingMessage.textContent = "";
                     console.log("Votes reset successful.");
                 } catch (e) {
-                    console.error("Error resetting votes: ", e);
+                    console.error("Error resetting votes (Firestore setDoc failed): ", e); // Debugging
                     showModal("Error resetting votes. Please try again.");
                     loadingMessage.textContent = "";
                 }
             };
-            const existingConfirmButton = modal.querySelector('.modal-content button');
-            if (existingConfirmButton) {
-                existingConfirmButton.remove();
-            }
-            modal.querySelector('.modal-content').appendChild(confirmButton);
         }
 
         // --- Event Listeners ---
