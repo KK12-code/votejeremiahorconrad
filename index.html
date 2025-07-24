@@ -62,9 +62,8 @@
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
         <h1 class="text-4xl font-bold mb-6 text-gray-800">Vote for Your Team!</h1>
 
-        <div id="loading-message" class="text-gray-600 mb-4">Loading votes...</div>
-        <!-- Removed the user-id-display paragraph -->
-        <!-- <p id="user-id-display" class="text-sm text-gray-500 mb-4"></p> -->
+        <div id="loading-message" class="text-gray-600 mb-4">Initializing application...</div>
+        <!-- User ID display is intentionally removed from HTML -->
 
 
         <div class="flex justify-around items-center mb-8 space-x-4">
@@ -80,11 +79,11 @@
 
         <div class="flex flex-col space-y-4 mb-6">
             <button id="vote-jeremiah-btn"
-                    class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
+                    class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 shadow-md" disabled>
                 Vote Team Jeremiah
             </button>
             <button id="vote-conrad-btn"
-                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
+                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 shadow-md" disabled>
                 Vote Team Conrad
             </button>
         </div>
@@ -92,7 +91,7 @@
         <p id="message" class="text-lg text-gray-700 font-medium mb-4"></p>
 
         <button id="reset-votes-btn"
-                class="mt-4 text-sm text-gray-500 hover:text-gray-700 underline transition duration-200">
+                class="mt-4 text-sm text-gray-500 hover:text-gray-700 underline transition duration-200" disabled>
             Reset Votes
         </button>
     </div>
@@ -108,12 +107,11 @@
     <script type="module">
         // Firebase SDK imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, runTransaction, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, runTransaction, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Firebase Configuration and Initialization ---
-        // IMPORTANT: Replace the placeholder values below with your actual Firebase Project ID and Config!
-        const YOUR_FIREBASE_PROJECT_ID = "voteforconnieorjere"; // e.g., "my-voting-app-12345"
+        // --- Firebase Configuration ---
+        const YOUR_FIREBASE_PROJECT_ID = "voteforconnieorjere";
         const YOUR_FIREBASE_CONFIG = {
             apiKey: "AIzaSyB08UOHeorjfJl5ntchI8tq47GxU2hJVYk",
             authDomain: "voteforconnieorjere.firebaseapp.com",
@@ -123,53 +121,65 @@
             appId: "1:62779421954:web:1ae125204365bac0347e1b",
             measurementId: "G-PJSE4FL81M"
         };
-        // --- END OF IMPORTANT REPLACEMENT SECTION ---
 
-        const appId = YOUR_FIREBASE_PROJECT_ID; // Use your actual project ID for the app ID
+        const appId = YOUR_FIREBASE_PROJECT_ID;
         const firebaseConfig = YOUR_FIREBASE_CONFIG;
 
-        // --- Debugging: Log Firebase Config to Console ---
+        console.log("App Start: Initializing Firebase configuration...");
         console.log("Firebase Config:", firebaseConfig);
 
         let app;
         let db;
         let auth;
         let currentUserId = null;
-        let isAuthReady = false; // Flag to ensure Firestore operations wait for auth
+        let isAuthReady = false; // Controls if voting buttons are enabled
 
-        // Initialize Firebase app if config is available
+        // Function to set application readiness state
+        function setAppReadyState(ready) {
+            isAuthReady = ready;
+            console.log(`Application readiness state changed: isAuthReady = ${isAuthReady}`);
+            if (ready) {
+                loadingMessage.textContent = "Application is Ready!";
+                // Check hasVoted status and enable/disable buttons accordingly
+                loadHasVoted(); // Load hasVoted status AFTER currentUserId is set and app is ready
+                if (hasVoted) {
+                    disableVoting();
+                    messagePara.textContent = "Thanks for voting!";
+                    console.log("App ready: User has already voted, buttons disabled.");
+                } else {
+                    enableVoting();
+                    messagePara.textContent = "";
+                    console.log("App ready: User has not voted, buttons enabled.");
+                }
+            } else {
+                loadingMessage.textContent = "Initializing application...";
+                disableVoting(); // Keep buttons disabled if not ready
+                console.log("App not ready: Buttons disabled.");
+            }
+        }
+
+        // Initialize Firebase services
         if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.projectId && firebaseConfig.apiKey) {
             try {
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
-                auth = getAuth(app); // This might return an auth instance even if auth service isn't fully set up.
-                console.log("Firebase app initialized successfully.");
-                // Explicitly check if auth object is valid
+                auth = getAuth(app);
+                console.log("Firebase app, Firestore, and Auth services initialized successfully.");
+
                 if (!auth) {
                     throw new Error("Firebase Auth object could not be initialized. Check Firebase Authentication setup in console.");
                 }
             } catch (error) {
-                console.error("Error initializing Firebase services (app, firestore, auth):", error);
-                document.getElementById('vote-jeremiah-btn').disabled = true;
-                document.getElementById('vote-conrad-btn').disabled = true;
-                document.getElementById('reset-votes-btn').disabled = true;
-                document.getElementById('loading-message').textContent = "Error initializing Firebase. Votes will not be saved.";
-                // Set auth and db to null if initialization fails to prevent further errors
-                app = null;
-                db = null;
-                auth = null;
+                console.error("Critical Error: Firebase services failed to initialize:", error);
+                loadingMessage.textContent = "Initialization failed. Check console for errors.";
+                setAppReadyState(false);
+                app = null; db = null; auth = null;
             }
         } else {
-            console.error("Firebase config is incomplete or missing. App will run without persistent storage.");
-            // Disable voting buttons if Firebase is not initialized
-            document.getElementById('vote-jeremiah-btn').disabled = true;
-            document.getElementById('vote-conrad-btn').disabled = true;
-            document.getElementById('reset-votes-btn').disabled = true;
-            document.getElementById('loading-message').textContent = "Firebase not configured correctly. Votes will not be saved.";
-            // Set auth and db to null if config is bad
-            app = null;
-            db = null;
-            auth = null;
+            console.error("Critical Error: Firebase config is incomplete or missing.");
+            loadingMessage.textContent = "Firebase configuration error. Votes will not be saved.";
+            setAppReadyState(false);
+            app = null; db = null; auth = null;
         }
 
         // --- DOM Elements ---
@@ -180,7 +190,6 @@
         const messagePara = document.getElementById('message');
         const resetVotesBtn = document.getElementById('reset-votes-btn');
         const loadingMessage = document.getElementById('loading-message');
-        // const userIdDisplay = document.getElementById('user-id-display'); // Removed from HTML, so commenting out reference
 
         // --- Local State Variables ---
         let hasVoted = false; // Tracks if the current user has voted in this browser session
@@ -191,25 +200,32 @@
 
         function showModal(message) {
             modalMessage.textContent = message;
-            modal.style.display = 'flex'; // Use flex to center content
+            modal.style.display = 'flex';
         }
 
-        window.closeModal = function() { // Make it global for onclick in HTML
+        window.closeModal = function() {
             modal.style.display = 'none';
         }
 
         // --- Local Storage Functions for User Vote Status ---
         function loadHasVoted() {
-            const storedHasVoted = localStorage.getItem('hasVoted_' + currentUserId);
-            if (storedHasVoted === 'true') {
-                hasVoted = true;
+            if (currentUserId) {
+                const storedHasVoted = localStorage.getItem('hasVoted_' + currentUserId);
+                hasVoted = (storedHasVoted === 'true');
+                console.log(`Loaded hasVoted for ${currentUserId}: ${hasVoted}`);
             } else {
-                hasVoted = false; // Reset if user ID changes or no record
+                hasVoted = false;
+                console.log("currentUserId not available, hasVoted defaulted to false.");
             }
         }
 
         function saveHasVoted() {
-            localStorage.setItem('hasVoted_' + currentUserId, hasVoted);
+            if (currentUserId) {
+                localStorage.setItem('hasVoted_' + currentUserId, hasVoted);
+                console.log(`Saved hasVoted for ${currentUserId}: ${hasVoted}`);
+            } else {
+                console.warn("Cannot save hasVoted: currentUserId is null.");
+            }
         }
 
         // --- UI Update Functions ---
@@ -221,22 +237,25 @@
         function disableVoting() {
             voteJeremiahBtn.disabled = true;
             voteConradBtn.disabled = true;
+            resetVotesBtn.disabled = true;
             voteJeremiahBtn.classList.add('opacity-50', 'cursor-not-allowed');
             voteConradBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            resetVotesBtn.classList.add('opacity-50', 'cursor-not-allowed');
         }
 
         function enableVoting() {
             voteJeremiahBtn.disabled = false;
             voteConradBtn.disabled = false;
+            resetVotesBtn.disabled = false;
             voteJeremiahBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             voteConradBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            resetVotesBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
 
         // --- Firestore Operations ---
 
-        // Reference to the votes document in Firestore
-        // Storing in a public collection under artifacts/{appId}/public/data/team_votes
         const votesDocRef = db ? doc(collection(db, `artifacts/${appId}/public/data/team_votes`), 'current_votes') : null;
+        console.log("votesDocRef initialized:", votesDocRef);
 
         /**
          * Increments the vote count for a specific team using a Firestore transaction.
@@ -244,8 +263,9 @@
          * @param {string} teamName - 'jeremiah' or 'conrad'
          */
         async function voteTeam(teamName) {
+            console.log(`voteTeam called. isAuthReady: ${isAuthReady}, votesDocRef: ${votesDocRef}`);
             if (!isAuthReady || !votesDocRef) {
-                showModal("Application is not ready. Please wait.");
+                showModal("Application is not ready. Please wait for initialization to complete.");
                 return;
             }
 
@@ -259,23 +279,26 @@
                 await runTransaction(db, async (transaction) => {
                     const sfDoc = await transaction.get(votesDocRef);
                     if (!sfDoc.exists()) {
-                        // If the document doesn't exist, create it with initial votes
+                        console.log("Votes document does not exist, creating with initial values.");
                         transaction.set(votesDocRef, { jeremiah: 0, conrad: 0 });
                     }
 
-                    const newVotes = sfDoc.data() ? (sfDoc.data()[teamName] || 0) + 1 : 1;
+                    const currentTeamVotes = sfDoc.data() ? (sfDoc.data()[teamName] || 0) : 0;
+                    const newVotes = currentTeamVotes + 1;
                     transaction.update(votesDocRef, { [teamName]: newVotes });
+                    console.log(`Vote transaction: Team ${teamName} new count: ${newVotes}`);
                 });
 
                 hasVoted = true;
                 saveHasVoted();
                 disableVoting();
                 messagePara.textContent = `Thanks for voting Team ${teamName.charAt(0).toUpperCase() + teamName.slice(1)}!`;
-                loadingMessage.textContent = ""; // Clear loading message
+                loadingMessage.textContent = "";
+                console.log("Vote successful.");
             } catch (e) {
-                console.error("Transaction failed: ", e);
+                console.error("Vote transaction failed: ", e);
                 showModal("Error casting vote. Please try again.");
-                loadingMessage.textContent = ""; // Clear loading message
+                loadingMessage.textContent = "";
             }
         }
 
@@ -283,19 +306,18 @@
          * Resets all vote counts in Firestore to 0.
          */
         async function resetVotes() {
+            console.log(`resetVotes called. isAuthReady: ${isAuthReady}, votesDocRef: ${votesDocRef}`);
             if (!isAuthReady || !votesDocRef) {
-                showModal("Application is not ready. Please wait.");
+                showModal("Application is not ready. Please wait for initialization to complete.");
                 return;
             }
 
-            // Using a modal for confirmation instead of alert/confirm
             showModal("Are you sure you want to reset all votes? This action cannot be undone.");
-            // Add a confirmation button to the modal
             const confirmButton = document.createElement('button');
             confirmButton.textContent = 'Confirm Reset';
             confirmButton.className = 'mt-4 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out';
             confirmButton.onclick = async () => {
-                closeModal(); // Close the confirmation modal
+                closeModal();
                 loadingMessage.textContent = "Resetting votes...";
                 try {
                     await setDoc(votesDocRef, { jeremiah: 0, conrad: 0 });
@@ -303,13 +325,18 @@
                     saveHasVoted();
                     enableVoting();
                     messagePara.textContent = "Votes have been reset. You can vote again!";
-                    loadingMessage.textContent = ""; // Clear loading message
+                    loadingMessage.textContent = "";
+                    console.log("Votes reset successful.");
                 } catch (e) {
                     console.error("Error resetting votes: ", e);
                     showModal("Error resetting votes. Please try again.");
-                    loadingMessage.textContent = ""; // Clear loading message
+                    loadingMessage.textContent = "";
                 }
             };
+            const existingConfirmButton = modal.querySelector('.modal-content button');
+            if (existingConfirmButton) {
+                existingConfirmButton.remove();
+            }
             modal.querySelector('.modal-content').appendChild(confirmButton);
         }
 
@@ -319,98 +346,52 @@
         resetVotesBtn.addEventListener('click', resetVotes);
 
         // --- Firebase Authentication and Data Listener Setup ---
-        // Only proceed if auth and db objects were successfully initialized
         if (auth && db) {
             onAuthStateChanged(auth, async (user) => {
-                console.log("onAuthStateChanged fired. User:", user); // Debugging
+                console.log("onAuthStateChanged fired. User:", user);
                 if (user) {
                     currentUserId = user.uid;
-                    // userIdDisplay.textContent = `Your User ID: ${currentUserId}`; // Removed this line
-                    console.log("User authenticated. User ID:", currentUserId); // Debugging
+                    console.log("User authenticated. User ID:", currentUserId);
 
-                    // Load user's local vote status after auth is ready and user ID is known
-                    loadHasVoted();
-                    if (hasVoted) {
-                        disableVoting();
-                        messagePara.textContent = "Thanks for voting!";
-                    } else {
-                        enableVoting();
-                        messagePara.textContent = ""; // Clear any previous message
-                    }
-
-                    // Set up real-time listener for votes
                     onSnapshot(votesDocRef, (docSnap) => {
-                        console.log("Firestore snapshot received."); // Debugging
+                        console.log("Firestore snapshot received.");
                         if (docSnap.exists()) {
                             const data = docSnap.data();
                             updateDisplay(data.jeremiah || 0, data.conrad || 0);
-                            console.log("Votes data:", data); // Debugging
+                            console.log("Votes data:", data);
                         } else {
-                            // Document doesn't exist, initialize it in Firestore
-                            console.log("Votes document does not exist. Initializing..."); // Debugging
+                            console.log("Votes document does not exist. Initializing with 0 votes.");
                             setDoc(votesDocRef, { jeremiah: 0, conrad: 0 })
                                 .then(() => updateDisplay(0, 0))
                                 .catch(e => console.error("Error initializing votes document:", e));
                         }
-                        loadingMessage.textContent = ""; // Hide loading message once data is received
+                        setAppReadyState(true); // App is ready once data is received
+                        console.log("App ready state set to TRUE after Firestore snapshot.");
                     }, (error) => {
                         console.error("Error listening to votes:", error);
                         loadingMessage.textContent = "Error loading votes.";
                         showModal("Failed to load real-time votes. Please check your connection.");
+                        setAppReadyState(false); // App is not ready if listener fails
                     });
 
                 } else {
-                    // No user signed in, attempt anonymous sign-in
-                    console.log("No user signed in. Attempting anonymous sign-in..."); // Debugging
+                    console.log("No user signed in. Attempting anonymous sign-in...");
                     try {
                         const anonUser = await signInAnonymously(auth);
                         currentUserId = anonUser.user.uid;
-                        // userIdDisplay.textContent = `Your User ID: ${currentUserId} (Anonymous)`; // Removed this line
-                        console.log("Anonymous user signed in. User ID:", currentUserId); // Debugging
-
-                        // Load user's local vote status after auth is ready and user ID is known
-                        loadHasVoted();
-                        if (hasVoted) {
-                            disableVoting();
-                            messagePara.textContent = "Thanks for voting!";
-                        } else {
-                            enableVoting();
-                            messagePara.textContent = ""; // Clear any previous message
-                        }
-
-                        // Set up real-time listener for votes
-                        onSnapshot(votesDocRef, (docSnap) => {
-                            console.log("Firestore snapshot received (after anonymous sign-in)."); // Debugging
-                            if (docSnap.exists()) {
-                                const data = docSnap.data();
-                                updateDisplay(data.jeremiah || 0, data.conrad || 0);
-                                console.log("Votes data:", data); // Debugging
-                            } else {
-                                // Document doesn't exist, initialize it in Firestore
-                                console.log("Votes document does not exist. Initializing..."); // Debugging
-                                setDoc(votesDocRef, { jeremiah: 0, conrad: 0 })
-                                    .then(() => updateDisplay(0, 0))
-                                    .catch(e => console.error("Error initializing votes document:", e));
-                            }
-                            loadingMessage.textContent = ""; // Hide loading message once data is received
-                        }, (error) => {
-                            console.error("Error listening to votes:", error);
-                            loadingMessage.textContent = "Error loading votes.";
-                            showModal("Failed to load real-time votes. Please check your connection.");
-                        });
-
+                        console.log("Anonymous user signed in. User ID:", currentUserId);
+                        // onSnapshot will be triggered by the user object change, which will then set isAuthReady to true
                     } catch (error) {
                         console.error("Anonymous sign-in failed: ", error);
                         loadingMessage.textContent = "Authentication failed. Votes will not be saved.";
-                        // userIdDisplay.textContent = "Authentication failed."; // Removed this line
-                        disableVoting();
                         showModal("Could not authenticate. Voting functionality is limited.");
+                        setAppReadyState(false); // App is not ready if auth fails
                     }
                 }
             });
         } else {
-            console.error("Firebase 'auth' or 'db' objects are not initialized. Check Firebase config and ensure `app`, `db`, `auth` are not null after initialization attempt."); // Debugging
-            // UI elements are already disabled by the initialization block above.
+            console.error("Firebase 'auth' or 'db' objects are not initialized. Voting functionality disabled.");
+            setAppReadyState(false);
         }
     </script>
 </body>
