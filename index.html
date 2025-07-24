@@ -140,21 +140,40 @@
             console.log(`Application readiness state changed: isAuthReady = ${isAuthReady}`);
             if (ready) {
                 loadingMessage.textContent = "Application is Ready!";
-                // Check hasVoted status and enable/disable buttons accordingly
+                // Always enable the reset button when the app is ready
+                resetVotesBtn.disabled = false;
+                resetVotesBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                console.log("App ready: Reset button enabled.");
+
+                // Check hasVoted status and enable/disable voting buttons accordingly
                 loadHasVoted(); // Load hasVoted status AFTER currentUserId is set and app is ready
                 if (hasVoted) {
-                    disableVoting();
+                    // Only disable voting buttons, leave reset enabled
+                    voteJeremiahBtn.disabled = true;
+                    voteConradBtn.disabled = true;
+                    voteJeremiahBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    voteConradBtn.classList.add('opacity-50', 'cursor-not-allowed');
                     messagePara.textContent = "Thanks for voting!";
-                    console.log("App ready: User has already voted, buttons disabled.");
+                    console.log("App ready: User has already voted, voting buttons disabled.");
                 } else {
-                    enableVoting();
+                    // Enable voting buttons
+                    voteJeremiahBtn.disabled = false;
+                    voteConradBtn.disabled = false;
+                    voteJeremiahBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    voteConradBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     messagePara.textContent = "";
-                    console.log("App ready: User has not voted, buttons enabled.");
+                    console.log("App ready: User has not voted, voting buttons enabled.");
                 }
             } else {
                 loadingMessage.textContent = "Initializing application...";
-                disableVoting(); // Keep buttons disabled if not ready
-                console.log("App not ready: Buttons disabled.");
+                // Disable all buttons if not ready
+                voteJeremiahBtn.disabled = true;
+                voteConradBtn.disabled = true;
+                resetVotesBtn.disabled = true;
+                voteJeremiahBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                voteConradBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                resetVotesBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                console.log("App not ready: All buttons disabled.");
             }
         }
 
@@ -234,22 +253,20 @@
             conradVotesSpan.textContent = conradCount;
         }
 
+        // Modified: These functions now ONLY affect the voting buttons
         function disableVoting() {
             voteJeremiahBtn.disabled = true;
             voteConradBtn.disabled = true;
-            resetVotesBtn.disabled = true;
             voteJeremiahBtn.classList.add('opacity-50', 'cursor-not-allowed');
             voteConradBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            resetVotesBtn.classList.add('opacity-50', 'cursor-not-allowed');
         }
 
+        // Modified: These functions now ONLY affect the voting buttons
         function enableVoting() {
             voteJeremiahBtn.disabled = false;
             voteConradBtn.disabled = false;
-            resetVotesBtn.disabled = false;
             voteJeremiahBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             voteConradBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            resetVotesBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
 
         // --- Firestore Operations ---
@@ -291,7 +308,7 @@
 
                 hasVoted = true;
                 saveHasVoted();
-                disableVoting();
+                disableVoting(); // This will now only disable voting buttons
                 messagePara.textContent = `Thanks for voting Team ${teamName.charAt(0).toUpperCase() + teamName.slice(1)}!`;
                 loadingMessage.textContent = "";
                 console.log("Vote successful.");
@@ -323,7 +340,7 @@
                     await setDoc(votesDocRef, { jeremiah: 0, conrad: 0 });
                     hasVoted = false;
                     saveHasVoted();
-                    enableVoting();
+                    enableVoting(); // This will now only enable voting buttons
                     messagePara.textContent = "Votes have been reset. You can vote again!";
                     loadingMessage.textContent = "";
                     console.log("Votes reset successful.");
