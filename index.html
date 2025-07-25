@@ -108,7 +108,7 @@
         // Firebase SDK imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, runTransaction, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, runTransaction, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase Configuration ---
         const YOUR_FIREBASE_PROJECT_ID = "voteforconnieorjere";
@@ -133,6 +133,7 @@
         let auth;
         let currentUserId = null;
         let isAuthReady = false; // Controls if voting buttons are enabled
+        let userVoteRecordRef = null; // Reference to the current user's vote record
 
         // Function to set application readiness state
         function setAppReadyState(ready) {
@@ -145,25 +146,8 @@
                 resetVotesBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 console.log("App ready: Reset button enabled.");
 
-                // Check hasVoted status and enable/disable voting buttons accordingly
-                loadHasVoted(); // Load hasVoted status AFTER currentUserId is set and app is ready
-                if (hasVoted) {
-                    // Only disable voting buttons, leave reset enabled
-                    voteJeremiahBtn.disabled = true;
-                    voteConradBtn.disabled = true;
-                    voteJeremiahBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                    voteConradBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                    messagePara.textContent = "Thanks for voting!";
-                    console.log("App ready: User has already voted, voting buttons disabled.");
-                } else {
-                    // Enable voting buttons
-                    voteJeremiahBtn.disabled = false;
-                    voteConradBtn.disabled = false;
-                    voteJeremiahBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    voteConradBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    messagePara.textContent = "";
-                    console.log("App ready: User has not voted, voting buttons enabled.");
-                }
+                // Check user's vote status from Firestore and update UI
+                checkUserVoteStatus();
             } else {
                 loadingMessage.textContent = "Initializing application...";
                 // Disable all buttons if not ready
@@ -211,7 +195,9 @@
         const loadingMessage = document.getElementById('loading-message');
 
         // --- Local State Variables ---
-        let hasVoted = false; // Tracks if the current user has voted in this browser session
+        // 'hasVoted' now directly reflects if the user has a vote recorded in Firestore
+        let hasVoted = false;
+        let userCurrentVote = null; // Stores 'jeremiah', 'conrad', or null (from Firestore)
 
         // --- Modal Functions (replacing alert/confirm) ---
         const modal = document.getElementById('myModal');
@@ -226,27 +212,6 @@
             modal.style.display = 'none';
         }
 
-        // --- Local Storage Functions for User Vote Status ---
-        function loadHasVoted() {
-            if (currentUserId) {
-                const storedHasVoted = localStorage.getItem('hasVoted_' + currentUserId);
-                hasVoted = (storedHasVoted === 'true');
-                console.log(`Loaded hasVoted for ${currentUserId}: ${hasVoted}`);
-            } else {
-                hasVoted = false;
-                console.log("currentUserId not available, hasVoted defaulted to false.");
-            }
-        }
-
-        function saveHasVoted() {
-            if (currentUserId) {
-                localStorage.setItem('hasVoted_' + currentUserId, hasVoted);
-                console.log(`Saved hasVoted for ${currentUserId}: ${hasVoted}`);
-            } else {
-                console.warn("Cannot save hasVoted: currentUserId is null.");
-            }
-        }
-
         // --- UI Update Functions ---
         function updateDisplay(jeremiahCount, conradCount) {
             jeremiahVotesSpan.textContent = jeremiahCount;
@@ -254,7 +219,7 @@
         }
 
         // Modified: These functions now ONLY affect the voting buttons
-        function disableVoting() {
+        function disableVotingButtons() {
             voteJeremiahBtn.disabled = true;
             voteConradBtn.disabled = true;
             voteJeremiahBtn.classList.add('opacity-50', 'cursor-not-allowed');
@@ -262,103 +227,210 @@
         }
 
         // Modified: These functions now ONLY affect the voting buttons
-        function enableVoting() {
+        function enableVotingButtons() {
             voteJeremiahBtn.disabled = false;
             voteConradBtn.disabled = false;
             voteJeremiahBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             voteConradBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
 
-        // --- Firestore Operations ---
+        // --- Firestore Data References ---
+        // Global vote tally document
+        const globalVotesRef = db ? doc(collection(db, `artifacts/${appId}/public/data/global_votes`), 'current_tally') : null;
+        console.log("globalVotesRef initialized:", globalVotesRef);
 
-        const votesDocRef = db ? doc(collection(db, `artifacts/${appId}/public/data/team_votes`), 'current_votes') : null;
-        console.log("votesDocRef initialized:", votesDocRef);
+        // Function to check user's individual vote status from Firestore
+        async function checkUserVoteStatus() {
+            if (!currentUserId || !userVoteRecordRef) {
+                console.warn("Cannot check user vote status: currentUserId or userVoteRecordRef is null.");
+                hasVoted = false;
+                userCurrentVote = null;
+                enableVotingButtons(); // Allow voting if user status cannot be determined
+                messagePara.textContent = "Could not retrieve your vote status. Please try again.";
+                return;
+            }
+
+            try {
+                const docSnap = await getDoc(userVoteRecordRef);
+                if (docSnap.exists() && docSnap.data() && docSnap.data().votedFor) {
+                    hasVoted = true;
+                    userCurrentVote = docSnap.data().votedFor;
+                    disableVotingButtons();
+                    messagePara.textContent = `You have already voted for Team ${userCurrentVote.charAt(0).toUpperCase() + userCurrentVote.slice(1)}!`;
+                    console.log(`User ${currentUserId} has already voted for: ${userCurrentVote}`);
+                } else {
+                    hasVoted = false;
+                    userCurrentVote = null;
+                    enableVotingButtons();
+                    messagePara.textContent = ""; // Clear message if no vote
+                    console.log(`User ${currentUserId} has not voted yet.`);
+                }
+            } catch (error) {
+                console.error("Error checking user vote status:", error);
+                hasVoted = false;
+                userCurrentVote = null;
+                enableVotingButtons();
+                messagePara.textContent = "Could not retrieve your vote status. Please try again.";
+            }
+        }
+
 
         /**
-         * Increments the vote count for a specific team using a Firestore transaction.
-         * Transactions ensure atomicity for concurrent updates.
+         * Handles voting for a specific team.
+         * Enforces one vote per user and updates global tally.
          * @param {string} teamName - 'jeremiah' or 'conrad'
          */
         async function voteTeam(teamName) {
-            console.log(`voteTeam called. isAuthReady: ${isAuthReady}, votesDocRef: ${votesDocRef}`);
-            if (!isAuthReady || !votesDocRef) {
+            console.log(`voteTeam called. isAuthReady: ${isAuthReady}, globalVotesRef: ${globalVotesRef}, userVoteRecordRef: ${userVoteRecordRef}`);
+            if (!isAuthReady || !globalVotesRef || !userVoteRecordRef) {
                 showModal("Application is not ready. Please wait for initialization to complete.");
                 return;
             }
 
+            // Check if user has already voted based on current state (from Firestore)
             if (hasVoted) {
-                showModal("You have already voted!");
+                showModal(`You have already voted for Team ${userCurrentVote.charAt(0).toUpperCase() + userCurrentVote.slice(1)}! You can reset your vote if you wish.`);
                 return;
             }
 
             loadingMessage.textContent = "Casting vote...";
             try {
                 await runTransaction(db, async (transaction) => {
-                    const sfDoc = await transaction.get(votesDocRef);
-                    if (!sfDoc.exists()) {
-                        console.log("Votes document does not exist, creating with initial values.");
-                        transaction.set(votesDocRef, { jeremiah: 0, conrad: 0 });
+                    // 1. Get global vote tally
+                    const globalTallyDoc = await transaction.get(globalVotesRef);
+                    let currentJeremiahVotes = 0;
+                    let currentConradVotes = 0;
+
+                    if (globalTallyDoc.exists()) {
+                        const data = globalTallyDoc.data();
+                        currentJeremiahVotes = data.jeremiah || 0;
+                        currentConradVotes = data.conrad || 0;
+                    } else {
+                        // Initialize global tally if it doesn't exist
+                        transaction.set(globalVotesRef, { jeremiah: 0, conrad: 0 });
                     }
 
-                    const currentTeamVotes = sfDoc.data() ? (sfDoc.data()[teamName] || 0) : 0;
-                    const newVotes = currentTeamVotes + 1;
-                    transaction.update(votesDocRef, { [teamName]: newVotes });
-                    console.log(`Vote transaction: Team ${teamName} new count: ${newVotes}`);
+                    // 2. Check user's individual vote record (inside transaction for consistency)
+                    // This is the ultimate check to prevent double voting even if local state is off
+                    const userVoteDoc = await transaction.get(userVoteRecordRef);
+                    if (userVoteDoc.exists() && userVoteDoc.data() && userVoteDoc.data().votedFor) {
+                        // This user has already voted, abort transaction
+                        throw new Error("User already voted (transaction abort).");
+                    }
+
+                    // 3. Update global tally
+                    if (teamName === 'jeremiah') {
+                        currentJeremiahVotes++;
+                    } else if (teamName === 'conrad') {
+                        currentConradVotes++;
+                    }
+                    transaction.update(globalVotesRef, { jeremiah: currentJeremiahVotes, conrad: currentConradVotes });
+
+                    // 4. Record user's vote
+                    transaction.set(userVoteRecordRef, { votedFor: teamName });
+
+                    console.log(`Vote transaction: User ${currentUserId} voted for ${teamName}. New global counts: J=${currentJeremiahVotes}, C=${currentConradVotes}`);
                 });
 
+                // Update local state and UI after successful transaction
                 hasVoted = true;
-                saveHasVoted();
-                disableVoting(); // This will now only disable voting buttons
+                userCurrentVote = teamName;
+                disableVotingButtons();
                 messagePara.textContent = `Thanks for voting Team ${teamName.charAt(0).toUpperCase() + teamName.slice(1)}!`;
                 loadingMessage.textContent = "";
                 console.log("Vote successful.");
             } catch (e) {
-                console.error("Vote transaction failed: ", e);
-                showModal("Error casting vote. Please try again.");
+                if (e.message === "User already voted (transaction abort).") {
+                    // Re-check status in case local state was out of sync
+                    checkUserVoteStatus();
+                    showModal(`You have already voted for Team ${userCurrentVote ? userCurrentVote.charAt(0).toUpperCase() + userCurrentVote.slice(1) : 'a team'}! You can reset your vote if you wish.`);
+                    console.warn("Vote attempt failed: User already voted.");
+                } else {
+                    console.error("Vote transaction failed: ", e);
+                    showModal("Error casting vote. Please try again. (Check console for details)");
+                }
                 loadingMessage.textContent = "";
             }
         }
 
         /**
-         * Resets all vote counts in Firestore to 0.
+         * Resets the current user's vote and decrements the global tally.
          */
         async function resetVotes() {
-            console.log(`resetVotes called. isAuthReady: ${isAuthReady}, votesDocRef: ${votesDocRef}`);
-            if (!isAuthReady || !votesDocRef) {
+            console.log(`resetVotes called. isAuthReady: ${isAuthReady}, globalVotesRef: ${globalVotesRef}, userVoteRecordRef: ${userVoteRecordRef}`);
+            if (!isAuthReady || !globalVotesRef || !userVoteRecordRef) {
                 showModal("Application is not ready. Please wait for initialization to complete.");
                 return;
             }
 
-            showModal("Are you sure you want to reset all votes? This action cannot be undone.");
+            // Check if user has a vote to reset based on current state
+            if (!hasVoted) {
+                showModal("You haven't cast a vote yet to reset!");
+                return;
+            }
+
+            showModal("Are you sure you want to reset your vote? This will remove your vote from the total.");
             const modalContent = modal.querySelector('.modal-content');
-            let confirmButton = modalContent.querySelector('#confirm-reset-btn'); // Give it an ID
+            let confirmButton = modalContent.querySelector('#confirm-reset-btn');
             if (!confirmButton) {
                 confirmButton = document.createElement('button');
-                confirmButton.id = 'confirm-reset-btn'; // Assign ID
+                confirmButton.id = 'confirm-reset-btn';
                 confirmButton.textContent = 'Confirm Reset';
                 confirmButton.className = 'mt-4 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out';
                 modalContent.appendChild(confirmButton);
             }
 
-            // Remove previous event listener to prevent multiple bindings
-            confirmButton.onclick = null; 
+            confirmButton.onclick = null; // Clear previous listener
             confirmButton.onclick = async () => {
-                console.log("Confirm Reset button clicked."); // Debugging
+                console.log("Confirm Reset button clicked.");
                 closeModal();
-                loadingMessage.textContent = "Resetting votes...";
+                loadingMessage.textContent = "Resetting your vote...";
                 try {
-                    console.log("Attempting to set Firestore document to 0 votes..."); // Debugging
-                    await setDoc(votesDocRef, { jeremiah: 0, conrad: 0 });
-                    console.log("Firestore document set successfully."); // Debugging
+                    await runTransaction(db, async (transaction) => {
+                        // 1. Get user's vote record to find out which team they voted for
+                        const userVoteDoc = await transaction.get(userVoteRecordRef);
+                        if (!userVoteDoc.exists() || !userVoteDoc.data() || !userVoteDoc.data().votedFor) {
+                            // This scenario should ideally be caught by the initial !hasVoted check,
+                            // but it's a good safeguard within the transaction.
+                            throw new Error("No vote found for user to reset (transaction abort).");
+                        }
+                        const votedForTeam = userVoteDoc.data().votedFor;
+                        console.log(`User previously voted for: ${votedForTeam}`);
+
+                        // 2. Get global vote tally
+                        const globalTallyDoc = await transaction.get(globalVotesRef);
+                        let currentJeremiahVotes = globalTallyDoc.exists() ? (globalTallyDoc.data().jeremiah || 0) : 0;
+                        let currentConradVotes = globalTallyDoc.exists() ? (globalTallyDoc.data().conrad || 0) : 0;
+
+                        // 3. Decrement global tally based on user's previous vote
+                        if (votedForTeam === 'jeremiah') {
+                            currentJeremiahVotes = Math.max(0, currentJeremiahVotes - 1); // Ensure no negative votes
+                        } else if (votedForTeam === 'conrad') {
+                            currentConradVotes = Math.max(0, currentConradVotes - 1); // Ensure no negative votes
+                        }
+                        transaction.update(globalVotesRef, { jeremiah: currentJeremiahVotes, conrad: currentConradVotes });
+                        console.log(`Global tally updated: J=${currentJeremiahVotes}, C=${currentConradVotes}`);
+
+                        // 4. Clear user's vote record by setting votedFor to null
+                        transaction.update(userVoteRecordRef, { votedFor: null });
+                        console.log(`User's vote record cleared.`);
+                    });
+
+                    // Update local state and UI after successful transaction
                     hasVoted = false;
-                    saveHasVoted();
-                    enableVoting(); // This will now only enable voting buttons
-                    messagePara.textContent = "Votes have been reset. You can vote again!";
+                    userCurrentVote = null;
+                    enableVotingButtons(); // Enable voting buttons after personal reset
+                    messagePara.textContent = "Your vote has been reset. You can vote again!";
                     loadingMessage.textContent = "";
-                    console.log("Votes reset successful.");
+                    console.log("Personal vote reset successful.");
                 } catch (e) {
-                    console.error("Error resetting votes (Firestore setDoc failed): ", e); // Debugging
-                    showModal("Error resetting votes. Please try again.");
+                    if (e.message === "No vote found for user to reset (transaction abort).") {
+                        showModal("You haven't cast a vote yet to reset!");
+                        console.warn("Reset attempt failed: No vote found for user.");
+                    } else {
+                        console.error("Error resetting votes (Firestore transaction failed): ", e);
+                        showModal("Error resetting your vote. Please try again. (Check console for details)");
+                    }
                     loadingMessage.textContent = "";
                 }
             };
@@ -375,24 +447,29 @@
                 console.log("onAuthStateChanged fired. User:", user);
                 if (user) {
                     currentUserId = user.uid;
+                    // Initialize userVoteRecordRef once currentUserId is available
+                    userVoteRecordRef = doc(collection(db, `artifacts/${appId}/users/${currentUserId}/user_data`), 'vote_record');
                     console.log("User authenticated. User ID:", currentUserId);
+                    console.log("User vote record ref:", userVoteRecordRef.path);
 
-                    onSnapshot(votesDocRef, (docSnap) => {
-                        console.log("Firestore snapshot received.");
+                    // Set up real-time listener for GLOBAL votes
+                    onSnapshot(globalVotesRef, (docSnap) => {
+                        console.log("Firestore global votes snapshot received.");
                         if (docSnap.exists()) {
                             const data = docSnap.data();
                             updateDisplay(data.jeremiah || 0, data.conrad || 0);
-                            console.log("Votes data:", data);
+                            console.log("Global Votes data:", data);
                         } else {
-                            console.log("Votes document does not exist. Initializing with 0 votes.");
-                            setDoc(votesDocRef, { jeremiah: 0, conrad: 0 })
+                            // Initialize global tally if it doesn't exist
+                            console.log("Global votes document does not exist. Initializing with 0 votes.");
+                            setDoc(globalVotesRef, { jeremiah: 0, conrad: 0 })
                                 .then(() => updateDisplay(0, 0))
-                                .catch(e => console.error("Error initializing votes document:", e));
+                                .catch(e => console.error("Error initializing global votes document:", e));
                         }
-                        setAppReadyState(true); // App is ready once data is received
-                        console.log("App ready state set to TRUE after Firestore snapshot.");
+                        setAppReadyState(true); // App is ready once global data is received
+                        console.log("App ready state set to TRUE after Firestore global snapshot.");
                     }, (error) => {
-                        console.error("Error listening to votes:", error);
+                        console.error("Error listening to global votes:", error);
                         loadingMessage.textContent = "Error loading votes.";
                         showModal("Failed to load real-time votes. Please check your connection.");
                         setAppReadyState(false); // App is not ready if listener fails
@@ -403,8 +480,11 @@
                     try {
                         const anonUser = await signInAnonymously(auth);
                         currentUserId = anonUser.user.uid;
+                        // Initialize userVoteRecordRef for anonymous user
+                        userVoteRecordRef = doc(collection(db, `artifacts/${appId}/users/${currentUserId}/user_data`), 'vote_record');
                         console.log("Anonymous user signed in. User ID:", currentUserId);
-                        // onSnapshot will be triggered by the user object change, which will then set isAuthReady to true
+                        console.log("User vote record ref:", userVoteRecordRef.path);
+                        // onSnapshot for global votes will be triggered by the user object change, which will then set isAuthReady to true
                     } catch (error) {
                         console.error("Anonymous sign-in failed: ", error);
                         loadingMessage.textContent = "Authentication failed. Votes will not be saved.";
