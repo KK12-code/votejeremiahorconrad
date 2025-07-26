@@ -9,11 +9,18 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-image: url('https://railernews.org/wp-content/uploads/2023/09/sitp-cast-photos.jpeg'); /* Make sure this path is correct */
+            background-image: url('https://64.media.tumblr.com/f35551b8a5aeccec888c9ca5c91128a5/a8d5e3cb6102e78b-19/s2048x3072_c6875,0,77031,78750/7fafb43769d422c5149d48c21ed47bfb13cdce81.gif'); /* Make sure this path is correct */
             background-size: cover;
             background-repeat: no-repeat;
             background-position: center center;
             background-attachment: fixed;
+            /* Ensure body takes full height and allows scrolling */
+            min-height: 100vh; /* Use 100vh to ensure it's at least viewport height */
+            display: flex;
+            flex-direction: column; /* Stack content vertically */
+            align-items: center; /* Center horizontally */
+            justify-content: flex-start; /* Start content from the top */
+            padding: 2rem 1rem; /* Add some overall padding */
         }
         /* Custom modal styles for messages, replacing alert() */
         .modal {
@@ -57,8 +64,23 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body>
 
+    <!-- New Content Section -->
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl text-center mb-8">
+        <h2 class="text-3xl font-bold mb-4 text-gray-800">The Ultimate Summer Love Triangle: Belly's Choice!</h2>
+        <p class="text-gray-700 leading-relaxed mb-4">
+            Ah, Cousins Beach. The sun, the sand, and a love story that has captivated hearts everywhere. For years, Belly Conklin's summers have revolved around the Fisher brothers, Jeremiah and Conrad. One offers sunshine and laughter, a constant source of joy and unwavering devotion. The other, a brooding intensity, a deep, unspoken connection that hints at a love story written in the stars.
+        </p>
+        <p class="text-gray-700 leading-relaxed mb-4">
+            Belly finds herself caught between two worlds, two brothers, and two very different kinds of love. Is it the comforting warmth of a best friend, or the electrifying pull of a first love? Every fan has an opinion, every heart leans one way or the other.
+        </p>
+        <p class="text-gray-700 leading-relaxed">
+            Now, it's your turn to weigh in. Below, you can cast your vote and see which team is leading in this timeless romantic saga. Let your voice be heard in the greatest debate of the summer!
+        </p>
+    </div>
+
+    <!-- Existing Voting Application Section -->
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
         <h1 class="text-4xl font-bold mb-6 text-gray-800">Vote for Your Team!</h1>
 
