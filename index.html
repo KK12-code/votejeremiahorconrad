@@ -81,7 +81,7 @@
     </div>
 
     <!-- Existing Voting Application Section -->
-    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center mb-8">
         <h1 class="text-4xl font-bold mb-6 text-gray-800">Vote for Your Team!</h1>
 
         <div id="loading-message" class="text-gray-600 mb-4">Initializing application...</div>
@@ -118,6 +118,30 @@
         </button>
     </div>
 
+    <!-- New Comment Section -->
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl text-center mt-8">
+        <h2 class="text-3xl font-bold mb-6 text-gray-800">Join the Discussion!</h2>
+        <p class="text-gray-700 leading-relaxed mb-4">
+            Share your thoughts, theories, and why you're rooting for your team!
+        </p>
+
+        <div class="mb-6">
+            <textarea id="comment-input"
+                      class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                      rows="3"
+                      placeholder="Type your comment here..." disabled></textarea>
+            <button id="submit-comment-btn"
+                    class="mt-3 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-5 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md" disabled>
+                Submit Comment
+            </button>
+        </div>
+
+        <div id="comments-list" class="text-left space-y-4 max-h-96 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
+            <!-- Comments will be loaded here dynamically -->
+            <p class="text-gray-500 text-center">No comments yet. Be the first to share your thoughts!</p>
+        </div>
+    </div>
+
     <!-- Custom Modal for messages -->
     <div id="myModal" class="modal">
         <div class="modal-content">
@@ -130,7 +154,7 @@
         // Firebase SDK imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, runTransaction, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, runTransaction, onSnapshot, collection, addDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase Configuration ---
         const YOUR_FIREBASE_PROJECT_ID = "voteforconnieorjere";
@@ -154,7 +178,7 @@
         let db;
         let auth;
         let currentUserId = null;
-        let isAuthReady = false; // Controls if voting buttons are enabled
+        let isAuthReady = false; // Controls if voting and comment features are enabled
         let userVoteRecordRef = null; // Reference to the current user's vote record
 
         // Function to set application readiness state
@@ -168,6 +192,12 @@
                 resetVotesBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 console.log("App ready: Reset button enabled.");
 
+                // Enable comment input and button
+                commentInput.disabled = false;
+                submitCommentBtn.disabled = false;
+                commentInput.classList.remove('opacity-50', 'cursor-not-allowed');
+                submitCommentBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
                 // Check user's vote status from Firestore and update UI
                 checkUserVoteStatus();
             } else {
@@ -176,9 +206,14 @@
                 voteJeremiahBtn.disabled = true;
                 voteConradBtn.disabled = true;
                 resetVotesBtn.disabled = true;
+                commentInput.disabled = true;
+                submitCommentBtn.disabled = true;
+
                 voteJeremiahBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 voteConradBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 resetVotesBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                commentInput.classList.add('opacity-50', 'cursor-not-allowed');
+                submitCommentBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 console.log("App not ready: All buttons disabled.");
             }
         }
@@ -215,11 +250,14 @@
         const messagePara = document.getElementById('message');
         const resetVotesBtn = document.getElementById('reset-votes-btn');
         const loadingMessage = document.getElementById('loading-message');
+        const commentInput = document.getElementById('comment-input');
+        const submitCommentBtn = document.getElementById('submit-comment-btn');
+        const commentsList = document.getElementById('comments-list');
+
 
         // --- Local State Variables ---
-        // 'hasVoted' now directly reflects if the user has a vote recorded in Firestore
         let hasVoted = false;
-        let userCurrentVote = null; // Stores 'jeremiah', 'conrad', or null (from Firestore)
+        let userCurrentVote = null;
 
         // --- Modal Functions (replacing alert/confirm) ---
         const modal = document.getElementById('myModal');
@@ -240,7 +278,6 @@
             conradVotesSpan.textContent = conradCount;
         }
 
-        // Modified: These functions now ONLY affect the voting buttons
         function disableVotingButtons() {
             voteJeremiahBtn.disabled = true;
             voteConradBtn.disabled = true;
@@ -248,7 +285,6 @@
             voteConradBtn.classList.add('opacity-50', 'cursor-not-allowed');
         }
 
-        // Modified: These functions now ONLY affect the voting buttons
         function enableVotingButtons() {
             voteJeremiahBtn.disabled = false;
             voteConradBtn.disabled = false;
@@ -257,9 +293,11 @@
         }
 
         // --- Firestore Data References ---
-        // Global vote tally document
         const globalVotesRef = db ? doc(collection(db, `artifacts/${appId}/public/data/global_votes`), 'current_tally') : null;
+        const commentsCollectionRef = db ? collection(db, `artifacts/${appId}/public/data/comments`) : null; // New comments collection
         console.log("globalVotesRef initialized:", globalVotesRef);
+        console.log("commentsCollectionRef initialized:", commentsCollectionRef);
+
 
         // Function to check user's individual vote status from Firestore
         async function checkUserVoteStatus() {
@@ -267,7 +305,7 @@
                 console.warn("Cannot check user vote status: currentUserId or userVoteRecordRef is null.");
                 hasVoted = false;
                 userCurrentVote = null;
-                enableVotingButtons(); // Allow voting if user status cannot be determined
+                enableVotingButtons();
                 messagePara.textContent = "Could not retrieve your vote status. Please try again.";
                 return;
             }
@@ -284,7 +322,7 @@
                     hasVoted = false;
                     userCurrentVote = null;
                     enableVotingButtons();
-                    messagePara.textContent = ""; // Clear message if no vote
+                    messagePara.textContent = "";
                     console.log(`User ${currentUserId} has not voted yet.`);
                 }
             } catch (error) {
@@ -309,7 +347,6 @@
                 return;
             }
 
-            // Check if user has already voted based on current state (from Firestore)
             if (hasVoted) {
                 showModal(`You have already voted for Team ${userCurrentVote.charAt(0).toUpperCase() + userCurrentVote.slice(1)}! You can reset your vote if you wish.`);
                 return;
@@ -333,10 +370,8 @@
                     }
 
                     // 2. Check user's individual vote record (inside transaction for consistency)
-                    // This is the ultimate check to prevent double voting even if local state is off
                     const userVoteDoc = await transaction.get(userVoteRecordRef);
                     if (userVoteDoc.exists() && userVoteDoc.data() && userVoteDoc.data().votedFor) {
-                        // This user has already voted, abort transaction
                         throw new Error("User already voted (transaction abort).");
                     }
 
@@ -354,7 +389,6 @@
                     console.log(`Vote transaction: User ${currentUserId} voted for ${teamName}. New global counts: J=${currentJeremiahVotes}, C=${currentConradVotes}`);
                 });
 
-                // Update local state and UI after successful transaction
                 hasVoted = true;
                 userCurrentVote = teamName;
                 disableVotingButtons();
@@ -363,7 +397,6 @@
                 console.log("Vote successful.");
             } catch (e) {
                 if (e.message === "User already voted (transaction abort).") {
-                    // Re-check status in case local state was out of sync
                     checkUserVoteStatus();
                     showModal(`You have already voted for Team ${userCurrentVote ? userCurrentVote.charAt(0).toUpperCase() + userCurrentVote.slice(1) : 'a team'}! You can reset your vote if you wish.`);
                     console.warn("Vote attempt failed: User already voted.");
@@ -385,7 +418,6 @@
                 return;
             }
 
-            // Check if user has a vote to reset based on current state
             if (!hasVoted) {
                 showModal("You haven't cast a vote yet to reset!");
                 return;
@@ -402,46 +434,39 @@
                 modalContent.appendChild(confirmButton);
             }
 
-            confirmButton.onclick = null; // Clear previous listener
+            confirmButton.onclick = null;
             confirmButton.onclick = async () => {
                 console.log("Confirm Reset button clicked.");
                 closeModal();
                 loadingMessage.textContent = "Resetting your vote...";
                 try {
                     await runTransaction(db, async (transaction) => {
-                        // 1. Get user's vote record to find out which team they voted for
                         const userVoteDoc = await transaction.get(userVoteRecordRef);
                         if (!userVoteDoc.exists() || !userVoteDoc.data() || !userVoteDoc.data().votedFor) {
-                            // This scenario should ideally be caught by the initial !hasVoted check,
-                            // but it's a good safeguard within the transaction.
                             throw new Error("No vote found for user to reset (transaction abort).");
                         }
                         const votedForTeam = userVoteDoc.data().votedFor;
                         console.log(`User previously voted for: ${votedForTeam}`);
 
-                        // 2. Get global vote tally
                         const globalTallyDoc = await transaction.get(globalVotesRef);
                         let currentJeremiahVotes = globalTallyDoc.exists() ? (globalTallyDoc.data().jeremiah || 0) : 0;
                         let currentConradVotes = globalTallyDoc.exists() ? (globalTallyDoc.data().conrad || 0) : 0;
 
-                        // 3. Decrement global tally based on user's previous vote
                         if (votedForTeam === 'jeremiah') {
-                            currentJeremiahVotes = Math.max(0, currentJeremiahVotes - 1); // Ensure no negative votes
+                            currentJeremiahVotes = Math.max(0, currentJeremiahVotes - 1);
                         } else if (votedForTeam === 'conrad') {
-                            currentConradVotes = Math.max(0, currentConradVotes - 1); // Ensure no negative votes
+                            currentConradVotes = Math.max(0, currentConradVotes - 1);
                         }
                         transaction.update(globalVotesRef, { jeremiah: currentJeremiahVotes, conrad: currentConradVotes });
                         console.log(`Global tally updated: J=${currentJeremiahVotes}, C=${currentConradVotes}`);
 
-                        // 4. Clear user's vote record by setting votedFor to null
                         transaction.update(userVoteRecordRef, { votedFor: null });
                         console.log(`User's vote record cleared.`);
                     });
 
-                    // Update local state and UI after successful transaction
                     hasVoted = false;
                     userCurrentVote = null;
-                    enableVotingButtons(); // Enable voting buttons after personal reset
+                    enableVotingButtons();
                     messagePara.textContent = "Your vote has been reset. You can vote again!";
                     loadingMessage.textContent = "";
                     console.log("Personal vote reset successful.");
@@ -458,10 +483,68 @@
             };
         }
 
+        // --- Comment Section Functions ---
+        async function submitComment() {
+            if (!isAuthReady || !commentsCollectionRef) {
+                showModal("Application is not ready to submit comments. Please wait.");
+                return;
+            }
+
+            const commentText = commentInput.value.trim();
+            if (commentText === "") {
+                showModal("Please enter a comment before submitting.");
+                return;
+            }
+
+            if (!currentUserId) {
+                showModal("Authentication in progress. Please wait a moment before commenting.");
+                return;
+            }
+
+            try {
+                // Add comment to Firestore
+                await addDoc(commentsCollectionRef, {
+                    userId: currentUserId,
+                    comment: commentText,
+                    timestamp: serverTimestamp() // Use server timestamp for consistent ordering
+                });
+                commentInput.value = ""; // Clear input field
+                console.log("Comment submitted successfully.");
+            } catch (error) {
+                console.error("Error submitting comment:", error);
+                showModal("Failed to submit comment. Please try again.");
+            }
+        }
+
+        function displayComments(comments) {
+            commentsList.innerHTML = ''; // Clear existing comments
+            if (comments.length === 0) {
+                commentsList.innerHTML = '<p class="text-gray-500 text-center">No comments yet. Be the first to share your thoughts!</p>';
+                return;
+            }
+
+            comments.forEach(comment => {
+                const commentElement = document.createElement('div');
+                commentElement.className = 'bg-white p-3 rounded-lg shadow-sm mb-2';
+                const date = comment.timestamp ? new Date(comment.timestamp.seconds * 1000).toLocaleString() : 'Just now';
+                // Displaying a truncated user ID for brevity, but full ID is stored.
+                const displayUserId = comment.userId ? comment.userId.substring(0, 8) + '...' : 'Anonymous';
+                commentElement.innerHTML = `
+                    <p class="text-sm text-gray-600 font-semibold mb-1">User: ${displayUserId} <span class="text-gray-400 font-normal text-xs ml-2">${date}</span></p>
+                    <p class="text-gray-800">${comment.comment}</p>
+                `;
+                commentsList.appendChild(commentElement);
+            });
+            commentsList.scrollTop = commentsList.scrollHeight; // Scroll to bottom to show latest comment
+        }
+
+
         // --- Event Listeners ---
         voteJeremiahBtn.addEventListener('click', () => voteTeam('jeremiah'));
         voteConradBtn.addEventListener('click', () => voteTeam('conrad'));
         resetVotesBtn.addEventListener('click', resetVotes);
+        submitCommentBtn.addEventListener('click', submitComment);
+
 
         // --- Firebase Authentication and Data Listener Setup ---
         if (auth && db) {
@@ -496,6 +579,21 @@
                         showModal("Failed to load real-time votes. Please check your connection.");
                         setAppReadyState(false); // App is not ready if listener fails
                     });
+
+                    // Set up real-time listener for Comments
+                    const q = query(commentsCollectionRef, orderBy('timestamp', 'desc')); // Order by timestamp
+                    onSnapshot(q, (snapshot) => {
+                        const comments = [];
+                        snapshot.forEach(doc => {
+                            comments.push(doc.data());
+                        });
+                        displayComments(comments);
+                        console.log("Comments snapshot received. Total comments:", comments.length);
+                    }, (error) => {
+                        console.error("Error listening to comments:", error);
+                        // Do not set app ready state to false for comment errors, as voting can still work
+                    });
+
 
                 } else {
                     console.log("No user signed in. Attempting anonymous sign-in...");
