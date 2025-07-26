@@ -504,7 +504,7 @@
             try {
                 // Add comment to Firestore
                 await addDoc(commentsCollectionRef, {
-                    userId: currentUserId,
+                    // userId: currentUserId, // Removed userId from stored comment for anonymity
                     comment: commentText,
                     timestamp: serverTimestamp() // Use server timestamp for consistent ordering
                 });
@@ -523,15 +523,32 @@
                 return;
             }
 
+            // Regex to find URLs in text
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            // Regex to check if a URL is likely an image/gif
+            const imageRegex = /\.(jpeg|jpg|gif|png|webp|svg)$/i;
+
             comments.forEach(comment => {
                 const commentElement = document.createElement('div');
                 commentElement.className = 'bg-white p-3 rounded-lg shadow-sm mb-2';
                 const date = comment.timestamp ? new Date(comment.timestamp.seconds * 1000).toLocaleString() : 'Just now';
-                // Displaying a truncated user ID for brevity, but full ID is stored.
-                const displayUserId = comment.userId ? comment.userId.substring(0, 8) + '...' : 'Anonymous';
+
+                let processedComment = comment.comment;
+
+                // Process URLs and GIFs
+                processedComment = processedComment.replace(urlRegex, (url) => {
+                    if (imageRegex.test(url)) {
+                        // If it's an image/GIF, embed it
+                        return `<img src="${url}" alt="User submitted image" class="max-w-full h-auto rounded-lg my-2">`;
+                    } else {
+                        // Otherwise, make it a clickable link
+                        return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">${url}</a>`;
+                    }
+                });
+
                 commentElement.innerHTML = `
-                    <p class="text-sm text-gray-600 font-semibold mb-1">User: ${displayUserId} <span class="text-gray-400 font-normal text-xs ml-2">${date}</span></p>
-                    <p class="text-gray-800">${comment.comment}</p>
+                    <p class="text-sm text-gray-600 font-semibold mb-1">Anonymous <span class="text-gray-400 font-normal text-xs ml-2">${date}</span></p>
+                    <p class="text-gray-800 break-words">${processedComment}</p>
                 `;
                 commentsList.appendChild(commentElement);
             });
