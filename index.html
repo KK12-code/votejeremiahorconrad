@@ -9,30 +9,28 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-image: url('https://64.media.tumblr.com/f35551b8a5aeccec888c9ca5c91128a5/a8d5e3cb6102e78b-19/s2048x3072_c6875,0,77031,78750/7fafb43769d422c5149d48c21ed47bfb13cdce81.gif'); /* Make sure this path is correct */
+            background-image: url('https://64.media.tumblr.com/f35551b8a5aeccec888c9ca5c91128a5/a8d5e3cb6102e78b-19/s2048x3072_c6875,0,77031,78750/7fafb43769d422c5149d48c21ed47bfb13cdce81.gif');
             background-size: cover;
             background-repeat: no-repeat;
             background-position: center center;
             background-attachment: fixed;
-            /* Ensure body takes full height and allows scrolling */
-            min-height: 100vh; /* Use 100vh to ensure it's at least viewport height */
+            min-height: 100vh;
             display: flex;
-            flex-direction: column; /* Stack content vertically */
-            align-items: center; /* Center horizontally */
-            justify-content: flex-start; /* Start content from the top */
-            padding: 2rem 1rem; /* Add some overall padding */
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 2rem 1rem;
         }
-        /* Custom modal styles for messages, replacing alert() */
         .modal {
-            display: none; /* Hidden by default */
-            position: fixed; /* Stay in place */
-            z-index: 1000; /* Sit on top */
+            display: none;
+            position: fixed;
+            z-index: 1000;
             left: 0;
             top: 0;
-            width: 100%; /* Full width */
-            height: 100%; /* Full height */
-            overflow: auto; /* Enable scroll if needed */
-            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
             justify-content: center;
             align-items: center;
         }
@@ -65,8 +63,6 @@
     </style>
 </head>
 <body>
-
-    <!-- New Content Section -->
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl text-center mb-8">
         <h2 class="text-3xl font-bold mb-4 text-gray-800">The Ultimate Summer Love Triangle: Belly's Choice!</h2>
         <p class="text-gray-700 leading-relaxed mb-4">
@@ -80,14 +76,10 @@
         </p>
     </div>
 
-    <!-- Existing Voting Application Section -->
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center mb-8">
         <h1 class="text-4xl font-bold mb-6 text-gray-800">Vote for Your Team!</h1>
 
         <div id="loading-message" class="text-gray-600 mb-4">Initializing application...</div>
-        <!-- User ID display is intentionally removed from HTML -->
-
-
         <div class="flex justify-around items-center mb-8 space-x-4">
             <div class="flex flex-col items-center">
                 <span class="text-6xl font-extrabold text-blue-600" id="jeremiah-votes">0</span>
@@ -126,7 +118,6 @@
         </button>
       </div>
 
-    <!-- New Comment Section -->
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl text-center mt-8">
         <h2 class="text-3xl font-bold mb-6 text-gray-800">Join the Discussion!</h2>
         <p class="text-gray-700 leading-relaxed mb-4">
@@ -145,12 +136,10 @@
         </div>
 
         <div id="comments-list" class="text-left space-y-4 max-h-96 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
-            <!-- Comments will be loaded here dynamically -->
             <p class="text-gray-500 text-center">No comments yet. Be the first to share your thoughts!</p>
         </div>
     </div>
 
-    <!-- Custom Modal for messages -->
     <div id="myModal" class="modal">
         <div class="modal-content">
             <span class="close-button" onclick="closeModal()">&times;</span>
@@ -167,7 +156,8 @@
         // --- Firebase Configuration ---
         const YOUR_FIREBASE_PROJECT_ID = "voteforconnieorjere";
         const YOUR_FIREBASE_CONFIG = {
-            apiKey: "AIzaSyBbE2vK6Wx5x9V2r6mKdKZ4rCwZwK0lVHc",
+            // This is the CORRECTED API key
+            apiKey: "AIzaSyB08UOHeorjfJl5ntchI8tq47GxU2hJVYk",
             authDomain: "voteforconnieorjere.firebaseapp.com",
             projectId: "voteforconnieorjere",
             storageBucket: "voteforconnieorjere.firebasestorage.app",
@@ -186,31 +176,26 @@
         let db;
         let auth;
         let currentUserId = null;
-        let isAuthReady = false; // Controls if voting and comment features are enabled
-        let userVoteRecordRef = null; // Reference to the current user's vote record
+        let isAuthReady = false;
+        let userVoteRecordRef = null;
 
-        // Function to set application readiness state
         function setAppReadyState(ready) {
             isAuthReady = ready;
             console.log(`Application readiness state changed: isAuthReady = ${isAuthReady}`);
             if (ready) {
                 loadingMessage.textContent = "Application is Ready!";
-                // Always enable the reset button when the app is ready
                 resetVotesBtn.disabled = false;
                 resetVotesBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 console.log("App ready: Reset button enabled.");
 
-                // Enable comment input and button
                 commentInput.disabled = false;
                 submitCommentBtn.disabled = false;
                 commentInput.classList.remove('opacity-50', 'cursor-not-allowed');
                 submitCommentBtn.classList.remove('opacity-50', 'cursor-not-allowed');
 
-                // Check user's vote status from Firestore and update UI
                 checkUserVoteStatus();
             } else {
                 loadingMessage.textContent = "Initializing application...";
-                // Disable all buttons if not ready
                 voteJeremiahBtn.disabled = true;
                 voteConradBtn.disabled = true;
                 resetVotesBtn.disabled = true;
@@ -226,7 +211,6 @@
             }
         }
 
-        // Initialize Firebase services
         if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.projectId && firebaseConfig.apiKey) {
             try {
                 app = initializeApp(firebaseConfig);
@@ -250,7 +234,6 @@
             app = null; db = null; auth = null;
         }
 
-        // --- DOM Elements ---
         const jeremiahVotesSpan = document.getElementById('jeremiah-votes');
         const conradVotesSpan = document.getElementById('conrad-votes');
         const voteJeremiahBtn = document.getElementById('vote-jeremiah-btn');
@@ -262,12 +245,9 @@
         const submitCommentBtn = document.getElementById('submit-comment-btn');
         const commentsList = document.getElementById('comments-list');
 
-
-        // --- Local State Variables ---
         let hasVoted = false;
         let userCurrentVote = null;
 
-        // --- Modal Functions (replacing alert/confirm) ---
         const modal = document.getElementById('myModal');
         const modalMessage = document.getElementById('modal-message');
 
@@ -280,7 +260,6 @@
             modal.style.display = 'none';
         }
 
-        // --- UI Update Functions ---
         function updateDisplay(jeremiahCount, conradCount) {
             jeremiahVotesSpan.textContent = jeremiahCount;
             conradVotesSpan.textContent = conradCount;
@@ -300,14 +279,11 @@
             voteConradBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
 
-        // --- Firestore Data References ---
         const globalVotesRef = db ? doc(collection(db, `artifacts/${appId}/public/data/global_votes`), 'current_tally') : null;
-        const commentsCollectionRef = db ? collection(db, `artifacts/${appId}/public/data/comments`) : null; // New comments collection
+        const commentsCollectionRef = db ? collection(db, `artifacts/${appId}/public/data/comments`) : null;
         console.log("globalVotesRef initialized:", globalVotesRef);
         console.log("commentsCollectionRef initialized:", commentsCollectionRef);
 
-
-        // Function to check user's individual vote status from Firestore
         async function checkUserVoteStatus() {
             if (!currentUserId || !userVoteRecordRef) {
                 console.warn("Cannot check user vote status: currentUserId or userVoteRecordRef is null.");
@@ -342,12 +318,6 @@
             }
         }
 
-
-        /**
-         * Handles voting for a specific team.
-         * Enforces one vote per user and updates global tally.
-         * @param {string} teamName - 'jeremiah' or 'conrad'
-         */
         async function voteTeam(teamName) {
             console.log(`voteTeam called. isAuthReady: ${isAuthReady}, globalVotesRef: ${globalVotesRef}, userVoteRecordRef: ${userVoteRecordRef}`);
             if (!isAuthReady || !globalVotesRef || !userVoteRecordRef) {
@@ -363,7 +333,6 @@
             loadingMessage.textContent = "Casting vote...";
             try {
                 await runTransaction(db, async (transaction) => {
-                    // 1. Get global vote tally
                     const globalTallyDoc = await transaction.get(globalVotesRef);
                     let currentJeremiahVotes = 0;
                     let currentConradVotes = 0;
@@ -373,25 +342,20 @@
                         currentJeremiahVotes = data.jeremiah || 0;
                         currentConradVotes = data.conrad || 0;
                     } else {
-                        // Initialize global tally if it doesn't exist
                         transaction.set(globalVotesRef, { jeremiah: 0, conrad: 0 });
                     }
 
-                    // 2. Check user's individual vote record (inside transaction for consistency)
                     const userVoteDoc = await transaction.get(userVoteRecordRef);
                     if (userVoteDoc.exists() && userVoteDoc.data() && userVoteDoc.data().votedFor) {
                         throw new Error("User already voted (transaction abort).");
                     }
 
-                    // 3. Update global tally
                     if (teamName === 'jeremiah') {
                         currentJeremiahVotes++;
                     } else if (teamName === 'conrad') {
                         currentConradVotes++;
                     }
                     transaction.update(globalVotesRef, { jeremiah: currentJeremiahVotes, conrad: currentConradVotes });
-
-                    // 4. Record user's vote
                     transaction.set(userVoteRecordRef, { votedFor: teamName });
 
                     console.log(`Vote transaction: User ${currentUserId} voted for ${teamName}. New global counts: J=${currentJeremiahVotes}, C=${currentConradVotes}`);
@@ -416,9 +380,6 @@
             }
         }
 
-        /**
-         * Resets the current user's vote and decrements the global tally.
-         */
         async function resetVotes() {
             console.log(`resetVotes called. isAuthReady: ${isAuthReady}, globalVotesRef: ${globalVotesRef}, userVoteRecordRef: ${userVoteRecordRef}`);
             if (!isAuthReady || !globalVotesRef || !userVoteRecordRef) {
@@ -491,7 +452,6 @@
             };
         }
 
-        // --- Comment Section Functions ---
         async function submitComment() {
             if (!isAuthReady || !commentsCollectionRef) {
                 showModal("Application is not ready to submit comments. Please wait.");
@@ -510,13 +470,11 @@
             }
 
             try {
-                // Add comment to Firestore
                 await addDoc(commentsCollectionRef, {
-                    // userId: currentUserId, // Removed userId from stored comment for anonymity
                     comment: commentText,
-                    timestamp: serverTimestamp() // Use server timestamp for consistent ordering
+                    timestamp: serverTimestamp()
                 });
-                commentInput.value = ""; // Clear input field
+                commentInput.value = "";
                 console.log("Comment submitted successfully.");
             } catch (error) {
                 console.error("Error submitting comment:", error);
@@ -525,15 +483,13 @@
         }
 
         function displayComments(comments) {
-            commentsList.innerHTML = ''; // Clear existing comments
+            commentsList.innerHTML = '';
             if (comments.length === 0) {
                 commentsList.innerHTML = '<p class="text-gray-500 text-center">No comments yet. Be the first to share your thoughts!</p>';
                 return;
             }
 
-            // Regex to find URLs in text
             const urlRegex = /(https?:\/\/[^\s]+)/g;
-            // Regex to check if a URL is likely an image/gif
             const imageRegex = /\.(jpeg|jpg|gif|png|webp|svg)$/i;
 
             comments.forEach(comment => {
@@ -543,13 +499,10 @@
 
                 let processedComment = comment.comment;
 
-                // Process URLs and GIFs
                 processedComment = processedComment.replace(urlRegex, (url) => {
                     if (imageRegex.test(url)) {
-                        // If it's an image/GIF, embed it
                         return `<img src="${url}" alt="User submitted image" class="max-w-full h-auto rounded-lg my-2">`;
                     } else {
-                        // Otherwise, make it a clickable link
                         return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">${url}</a>`;
                     }
                 });
@@ -560,29 +513,23 @@
                 `;
                 commentsList.appendChild(commentElement);
             });
-            commentsList.scrollTop = commentsList.scrollHeight; // Scroll to bottom to show latest comment
+            commentsList.scrollTop = commentsList.scrollHeight;
         }
 
-
-        // --- Event Listeners ---
         voteJeremiahBtn.addEventListener('click', () => voteTeam('jeremiah'));
         voteConradBtn.addEventListener('click', () => voteTeam('conrad'));
         resetVotesBtn.addEventListener('click', resetVotes);
         submitCommentBtn.addEventListener('click', submitComment);
 
-
-        // --- Firebase Authentication and Data Listener Setup ---
         if (auth && db) {
             onAuthStateChanged(auth, async (user) => {
                 console.log("onAuthStateChanged fired. User:", user);
                 if (user) {
                     currentUserId = user.uid;
-                    // Initialize userVoteRecordRef once currentUserId is available
                     userVoteRecordRef = doc(collection(db, `artifacts/${appId}/users/${currentUserId}/user_data`), 'vote_record');
                     console.log("User authenticated. User ID:", currentUserId);
                     console.log("User vote record ref:", userVoteRecordRef.path);
 
-                    // Set up real-time listener for GLOBAL votes
                     onSnapshot(globalVotesRef, (docSnap) => {
                         console.log("Firestore global votes snapshot received.");
                         if (docSnap.exists()) {
@@ -590,23 +537,21 @@
                             updateDisplay(data.jeremiah || 0, data.conrad || 0);
                             console.log("Global Votes data:", data);
                         } else {
-                            // Initialize global tally if it doesn't exist
                             console.log("Global votes document does not exist. Initializing with 0 votes.");
                             setDoc(globalVotesRef, { jeremiah: 0, conrad: 0 })
                                 .then(() => updateDisplay(0, 0))
                                 .catch(e => console.error("Error initializing global votes document:", e));
                         }
-                        setAppReadyState(true); // App is ready once global data is received
+                        setAppReadyState(true);
                         console.log("App ready state set to TRUE after Firestore global snapshot.");
                     }, (error) => {
                         console.error("Error listening to global votes:", error);
                         loadingMessage.textContent = "Error loading votes.";
                         showModal("Failed to load real-time votes. Please check your connection.");
-                        setAppReadyState(false); // App is not ready if listener fails
+                        setAppReadyState(false);
                     });
 
-                    // Set up real-time listener for Comments
-                    const q = query(commentsCollectionRef, orderBy('timestamp', 'desc')); // Order by timestamp
+                    const q = query(commentsCollectionRef, orderBy('timestamp', 'desc'));
                     onSnapshot(q, (snapshot) => {
                         const comments = [];
                         snapshot.forEach(doc => {
@@ -616,25 +561,20 @@
                         console.log("Comments snapshot received. Total comments:", comments.length);
                     }, (error) => {
                         console.error("Error listening to comments:", error);
-                        // Do not set app ready state to false for comment errors, as voting can still work
                     });
-
-
                 } else {
                     console.log("No user signed in. Attempting anonymous sign-in...");
                     try {
                         const anonUser = await signInAnonymously(auth);
                         currentUserId = anonUser.user.uid;
-                        // Initialize userVoteRecordRef for anonymous user
                         userVoteRecordRef = doc(collection(db, `artifacts/${appId}/users/${currentUserId}/user_data`), 'vote_record');
                         console.log("Anonymous user signed in. User ID:", currentUserId);
                         console.log("User vote record ref:", userVoteRecordRef.path);
-                        // onSnapshot for global votes will be triggered by the user object change, which will then set isAuthReady to true
                     } catch (error) {
                         console.error("Anonymous sign-in failed: ", error);
                         loadingMessage.textContent = "Authentication failed. Votes will not be saved.";
                         showModal("Could not authenticate. Voting functionality is limited.");
-                        setAppReadyState(false); // App is not ready if auth fails
+                        setAppReadyState(false);
                     }
                 }
             });
